@@ -19,15 +19,15 @@ op_code = {0x20:'IMM',0x02:'ADD',0x04:'STK',0x01:'STM',0x40:'LDM',0x10:'CMP',0x0
 
 class vm_memory:
    def __init__(self,vm_mem_size: int) -> None:
-      self.vm_memory: List[Union[int,str]] = [0] * vm_mem_size 
+      self.vm_memory: List[int] = [0] * vm_mem_size 
 
-   def write_vm_memory(self,position: int,data: Union[int,str]) -> None:
+   def write_vm_memory(self,position: int,data: int) -> None:
       self.vm_memory[position] = data
 
-   def read_vm_memory(self,position: int)->Union[int,str]:
+   def read_vm_memory(self,position: int)->int:
       return self.vm_memory[position]
    
-   def read_entire_vm_memory(self) -> List[Union[int,str]]:
+   def read_entire_vm_memory(self) -> List[int]:
       return self.vm_memory
 
 
@@ -47,7 +47,7 @@ class vm_register:
       self.register[register] = value
       return
 
-   def read_register(self,register: int) -> Union[int,str]:
+   def read_register(self,register: int) -> int:
       reg_value = self.register[register]
       return reg_value
 
@@ -76,7 +76,7 @@ class disassemble_yan_85:
 
    def translate(self) -> None:
       #while True
-      for _ in range(10):
+      for _ in range(105):
          three_bytes = self.byte_code[self.register.register[self.register.i_hex]*3-3:self.register.register[self.register.i_hex]*3]
          three_translated = []
          for i in range(len(three_bytes)):
@@ -117,7 +117,28 @@ class disassemble_yan_85:
                print(f"[s] {three_translated[0]} *{self.register.reverse_register[three_bytes[2]]} = {self.register.reverse_register[three_bytes[1]]}")
                self.vm_mem.write_vm_memory(self.register.register[three_bytes[2]],self.register.register[three_bytes[1]])
                # print(f"[s] current memory layout: {self.vm_mem.read_entire_vm_memory()}")
-               
+            case "LDM":
+               print(f"[s] {three_translated[0]} {self.register.reverse_register[three_bytes[2]]} = *{self.register.reverse_register[three_bytes[1]]}")
+               val_in_reg = self.register.read_register(three_bytes[1])
+               self.register.write_register(three_bytes[2],self.vm_mem.read_vm_memory(val_in_reg))
+            case "JMP":
+               flags = three_bytes[2] 
+               flag_description = ""
+               current_f = self.register.read_register[0x2]
+               if (flags & 1) != 0:
+                  flag_description += "L"
+               if flags & 2 != 0:
+                  flag_description += "G"
+               if flags & 4 != 0:
+                  flag_description += "E"
+               if flags & 8 != 0:
+                  flag_description += "N"
+               if flags & 0x10 != 0:
+                  flag_description += "Z"
+               if flags & 0x10 != 0:
+                  flag_description += "*"
+               print(f"[j] {three_translated[0]} {flag_description}  {self.register.reverse_register[three_bytes[1]]}")
+               #implement if jmp is taken or not
 
 
          self.register.register[self.register.i_hex] += 1
