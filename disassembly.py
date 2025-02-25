@@ -17,18 +17,18 @@ reverse_register = {0x10:'a',0x40:'b',0x20:'c',0x1:'d',0x4:'s',0x8:'i',0x2:'f',0
 op_code = {0x20:'IMM',0x02:'ADD',0x04:'STK',0x01:'STM',0x40:'LDM',0x10:'CMP',0x08:'SYS',0x80:'JMP'}
 
 
-class vm_memory:
-   def __init__(self,vm_mem_size: int) -> None:
-      self.vm_memory: List[int] = [0] * vm_mem_size 
-
-   def write_vm_memory(self,position: int,data: int) -> None:
-      self.vm_memory[position] = data
-
-   def read_vm_memory(self,position: int)->int:
-      return self.vm_memory[position]
-   
-   def read_entire_vm_memory(self) -> List[int]:
-      return self.vm_memory
+# class vm_memory:
+#    def __init__(self,vm_mem_size: int) -> None:
+#       self.vm_memory: List[int] = [0] * vm_mem_size 
+#
+#    def write_vm_memory(self,position: int,data: int) -> None:
+#       self.vm_memory[position] = data
+#
+#    def read_vm_memory(self,position: int)->int:
+#       return self.vm_memory[position]
+#    
+#    def read_entire_vm_memory(self) -> List[int]:
+#       return self.vm_memory
 
 
 class vm_register:
@@ -52,8 +52,8 @@ class vm_register:
       return reg_value
 
 class vm_stack:
-   def  __init__(self,register: vm_register):
-      self.stack: deque[int] = deque()
+   def  __init__(self,register: vm_register,size: int):
+      self.stack: list[int] = [0] * size
       self.register = register
 
    def push_stack(self,register:int) -> None:
@@ -61,22 +61,33 @@ class vm_stack:
 
    def pop_stack(self,register:int) -> None:
       self.register.write_register(register,self.stack.pop())
+   
+   def write_vm_stack(self,position: int,data: int) -> None:
+      self.stack[position] = data
 
+   def read_vm_stack(self,position: int)->int:
+      return self.stack[position]
+
+   def read_stack_len(self,amount: int) -> list[int]:
+      len_stack = len(self.stack)
+      return self.stack[len_stack - amount:len_stack]
+   def read_entire_virtual_stack(self) -> list [int]:
+      return self.stack
 
 class disassemble_yan_85:
    """
    Get all the hex code for yan_85 instructions for that respective binary
    """
-   def __init__(self,imm: int,add: int,stk: int,stm: int,ldm: int,cmp: int,jmp: int,sys :int,byte_code: list[int],registers: vm_register,virtual_memory: vm_memory,virtual_stack: vm_stack):
+   def __init__(self,imm: int,add: int,stk: int,stm: int,ldm: int,cmp: int,jmp: int,sys :int,byte_code: list[int],registers: vm_register,virtual_memory: vm_stack):
       self.instructions = {"IMM":imm,"ADD":add,"STK":stk,"STM":stm,"LDM":ldm,"CMP":cmp,"JMP":jmp,"SYS":sys}
       self.byte_code = byte_code
       self.register = registers
-      self.vm_mem = virtual_memory
-      self.vm_stack = virtual_stack
+      # self.vm_mem = virtual_memory
+      self.vm_stack = virtual_memory
 
    def translate(self) -> None:
       #while True
-      for _ in range(105):
+      for _ in range(205):
          three_bytes = self.byte_code[self.register.register[self.register.i_hex]*3-3:self.register.register[self.register.i_hex]*3]
          three_translated = []
          for i in range(len(three_bytes)):
@@ -105,26 +116,31 @@ class disassemble_yan_85:
                print(f"[s] {three_translated[0]} {self.register.reverse_register.get(three_bytes[2])}  {three_translated[2]}")
             case "STK":
                print(f"[s] {three_translated[0]} {self.register.reverse_register.get(three_bytes[2])} {self.register.reverse_register.get(three_bytes[1])}")
+               current_stack_val = self.register.read_register(0x4)
                if three_bytes[1] != 0x0:
                   reg_value = self.register.register[three_bytes[1]]
                   self.vm_stack.push_stack(reg_value)
                   print(f"[s] ... pushing {self.register.reverse_register[three_bytes[1]]}")
+                  current_stack_val += 1
+                  self.register.write_register(0x4,current_stack_val)
                if three_bytes[2] != 0x0:
                   reg_value = self.register.register[three_bytes[2]]
                   self.vm_stack.pop_stack(three_bytes[2])
                   print(f"[s] ... popping {self.register.reverse_register[three_bytes[2]]}")
+                  current_stack_val -= 1
+                  self.register.write_register(0x4,current_stack_val)
             case "STM":
                print(f"[s] {three_translated[0]} *{self.register.reverse_register[three_bytes[2]]} = {self.register.reverse_register[three_bytes[1]]}")
-               self.vm_mem.write_vm_memory(self.register.register[three_bytes[2]],self.register.register[three_bytes[1]])
+               self.vm_stack.write_vm_stack(self.register.register[three_bytes[2]],self.register.register[three_bytes[1]])
                # print(f"[s] current memory layout: {self.vm_mem.read_entire_vm_memory()}")
             case "LDM":
                print(f"[s] {three_translated[0]} {self.register.reverse_register[three_bytes[2]]} = *{self.register.reverse_register[three_bytes[1]]}")
                val_in_reg = self.register.read_register(three_bytes[1])
-               self.register.write_register(three_bytes[2],self.vm_mem.read_vm_memory(val_in_reg))
+               self.register.write_register(three_bytes[2],self.vm_stack.read_vm_stack(val_in_reg))
             case "JMP":
                flags = three_bytes[2] 
                flag_description = ""
-               current_f = self.register.read_register[0x2]
+               current_f = self.register.read_register(0x2)
                if (flags & 1) != 0:
                   flag_description += "L"
                if flags & 2 != 0:
@@ -137,21 +153,46 @@ class disassemble_yan_85:
                   flag_description += "Z"
                if flags & 0x10 != 0:
                   flag_description += "*"
+         
                print(f"[j] {three_translated[0]} {flag_description}  {self.register.reverse_register[three_bytes[1]]}")
-               #implement if jmp is taken or not
+               if flag_description == 0 or three_bytes[2] & current_f != 0:
+                  print(f"[j] ... TAKEN")
+                  register_val_to_jump_to = self.register.read_register(three_bytes[1])
+                  self.register.write_register(0x8,register_val_to_jump_to)
+               else:
+                  print("[j] ... NOT TAKEN")
+            case "SYS":
+               print(f"[s] SYS {hex(three_bytes[2])} {self.register.reverse_register[three_bytes[1]]}")
+               if three_bytes[2] & 0x2 != 0:
+                  print(f"[s] ... open")
+               if three_bytes[2] & 0x4 != 0:
+                  print(f"[s] ... read_code")
+               if three_bytes[2] & 0x100 != 0:
+                  print(f"[s] ... read_memory")
+                  print(self.vm_stack.read_entire_virtual_stack())
+               if three_bytes[2] & 0x1 != 0:
+                  print(f"[s] ... write")
+                  txt_to_be_printed = self.vm_stack.read_stack_len(self.register.read_register(0x20))
+                  txt_to_be_printed = [chr(k) for k in txt_to_be_printed]
+                  txt_to_be_printed = "".join(txt_to_be_printed)
+                  print(txt_to_be_printed)
+                  print(f"[s] ... return value (in register {self.register.reverse_register[three_bytes[1]]}): {self.register.read_register(0x20)}")
+                  self.register.write_register(three_bytes[1],self.register.read_register(0x20))
+               if three_bytes[2] & 0x8 != 0:
+                  print(f"[s] ... sleep")
+               if three_bytes[2] & 0x20 != 0:
+                  print(f"[s] ... exit")
+                  exit(1)
 
 
          self.register.register[self.register.i_hex] += 1
 
 
 reg_class = vm_register(0x10,0x40,0x20,0x1,0x4,0x8,0x2)
-virutal_mem = vm_memory(1000)
-virutal_stack = vm_stack(reg_class)
-yan_85_dis = disassemble_yan_85(0x20,0x02,0x04,0x01,0x40,0x10,0x08,0x80,vm_code,reg_class,virutal_mem,virutal_stack)
+# virutal_mem = vm_memory(1000)
+virutal_stack = vm_stack(reg_class,1000)
+yan_85_dis = disassemble_yan_85(0x20,0x02,0x04,0x01,0x40,0x10,0x80,0x8,vm_code,reg_class,virutal_stack)
 
 yan_85_dis.translate()
 
-#Todo: change for loop to while loop so that the vm_codes are not read in order but by the instruction pointer aka i
-#Todo: create virtual memory[just an array xd] to be loaded into
-#Todo: maybe refactor all of this into subclasses and shit to make it clearer
-#Todo: add the remaining instructions
+#Todo: figure out read_memory syscall
