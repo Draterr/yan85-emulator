@@ -31,6 +31,16 @@ op_code = {0x20:'IMM',0x02:'ADD',0x04:'STK',0x01:'STM',0x40:'LDM',0x10:'CMP',0x0
 #       return self.vm_memory
 
 
+print("""[+] Welcome to ./babyrev_level19.0!                                                   
+[+] This challenge is an custom emulator. It emulates a completely custom             
+[+] architecture that we call "Yan85"! You'll have to understand the                  
+[+] emulator to understand the architecture, and you'll have to understand            
+[+] the architecture to understand the code being emulated, and you will              
+[+] have to understand that code to get the flag. Good luck!                          
+[+]                                                                                   
+[+] This level is a full Yan85 emulator. You'll have to reason about yancode,         
+[+] and the implications of how the emulator interprets it!                           
+[+] Starting interpreter loop! Good luck!""")
 class vm_register:
    def __init__(self,a: int,b: int,c: int,d: int,s: int,i: int,f: int):
       self.a_hex = a
@@ -41,7 +51,7 @@ class vm_register:
       self.i_hex = i
       self.f_hex = f
       self.register: dict[int,int]= {self.a_hex:0,self.b_hex:0,self.c_hex: 0, self.d_hex: 0, self.s_hex: 0, self.i_hex: 1,self.f_hex: 0}
-      self.reverse_register = {self.a_hex: "a",self.b_hex: "b",self.c_hex: "c",self.d_hex: "d",self.s_hex: "s",self.i_hex: "i",self.f_hex:"f"}
+      self.reverse_register = {self.a_hex: "a",self.b_hex: "b",self.c_hex: "c",self.d_hex: "d",self.s_hex: "s",self.i_hex: "i",self.f_hex:"f",0x0:None}
    
    def write_register(self,register: int,value: int) -> None:
       self.register[register] = value
@@ -112,8 +122,10 @@ class disassemble_yan_85:
                print(f"[s] {three_translated[0]} {self.register.reverse_register.get(three_bytes[2])} = {three_translated[2]}")
             case "ADD":
                add_res = self.register.register[three_bytes[2]] + self.register.register[three_bytes[1]]
+               if add_res > 0xFF:
+                  add_res = add_res & 0xff
                self.register.write_register(three_bytes[2],add_res)
-               print(f"[s] {three_translated[0]} {self.register.reverse_register.get(three_bytes[2])}  {three_translated[2]}")
+               print(f"[s] {three_translated[0]} {self.register.reverse_register.get(three_bytes[2])} {self.register.reverse_register[three_bytes[1]]}")
             case "STK":
                print(f"[s] {three_translated[0]} {self.register.reverse_register.get(three_bytes[2])} {self.register.reverse_register.get(three_bytes[1])}")
                current_stack_val = self.register.read_register(0x4)
@@ -167,15 +179,22 @@ class disassemble_yan_85:
                   print(f"[s] ... open")
                if three_bytes[2] & 0x4 != 0:
                   print(f"[s] ... read_code")
-               if three_bytes[2] & 0x100 != 0:
+               if three_bytes[2] & 0x10 != 0:
                   print(f"[s] ... read_memory")
-                  print(self.vm_stack.read_entire_virtual_stack())
+                  user_input = input("")
+                  len_input = len(user_input)
+                  user_input = list(user_input)
+                  write_address = self.register.read_register(self.register.b_hex)
+                  for position in range(len_input):
+                     self.vm_stack.write_vm_stack(write_address+position,ord(user_input[position]))
+                  print(f"[s] ... return value (in register {self.register.reverse_register[three_bytes[1]]}): {len_input+1}")
+                  self.register.write_register(three_bytes[1],len_input+1)
                if three_bytes[2] & 0x1 != 0:
                   print(f"[s] ... write")
                   txt_to_be_printed = self.vm_stack.read_stack_len(self.register.read_register(0x20))
                   txt_to_be_printed = [chr(k) for k in txt_to_be_printed]
                   txt_to_be_printed = "".join(txt_to_be_printed)
-                  print(txt_to_be_printed)
+                  print(txt_to_be_printed,end="")
                   print(f"[s] ... return value (in register {self.register.reverse_register[three_bytes[1]]}): {self.register.read_register(0x20)}")
                   self.register.write_register(three_bytes[1],self.register.read_register(0x20))
                if three_bytes[2] & 0x8 != 0:
@@ -183,6 +202,24 @@ class disassemble_yan_85:
                if three_bytes[2] & 0x20 != 0:
                   print(f"[s] ... exit")
                   exit(1)
+            case "CMP":
+               print(f"[s] CMP {self.register.reverse_register[three_bytes[2]]} {self.register.reverse_register[three_bytes[1]]}")
+               print(f"[s] resetting the f register to 0")
+               self.register.write_register(0x2,0)
+               f_new = self.register.read_register(0x2)
+               if three_bytes[2] > three_bytes[1]:
+                  f_new = f_new | 1
+               if three_bytes[1] > three_bytes[2]:
+                  f_new = f_new | 2
+               if three_bytes[2] == three_bytes[1]:
+                  f_new = f_new | 4
+               else:
+                  f_new = f_new | 8
+               if three_bytes[1] == 0 and three_bytes[2] == 0:
+                  f_new = f_new | 10
+               self.register.write_register(0x2,f_new)
+
+
 
 
          self.register.register[self.register.i_hex] += 1
