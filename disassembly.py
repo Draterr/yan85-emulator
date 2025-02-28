@@ -207,16 +207,18 @@ class disassemble_yan_85:
                print(f"[s] resetting the f register to 0")
                self.register.write_register(0x2,0)
                f_new = self.register.read_register(0x2)
-               if three_bytes[2] > three_bytes[1]:
+               second_reg = self.register.read_register(three_bytes[1])
+               first_reg = self.register.read_register(three_bytes[2])
+               if first_reg < second_reg:
                   f_new = f_new | 1
-               if three_bytes[1] > three_bytes[2]:
+               if second_reg < first_reg:
                   f_new = f_new | 2
-               if three_bytes[2] == three_bytes[1]:
+               if second_reg == first_reg:
                   f_new = f_new | 4
                else:
                   f_new = f_new | 8
-               if three_bytes[1] == 0 and three_bytes[2] == 0:
-                  f_new = f_new | 10
+               if first_reg == 0 and second_reg == 0:
+                  f_new = f_new | 0x10
                self.register.write_register(0x2,f_new)
 
 
@@ -232,4 +234,3 @@ yan_85_dis = disassemble_yan_85(0x20,0x02,0x04,0x01,0x40,0x10,0x80,0x8,vm_code,r
 
 yan_85_dis.translate()
 
-#Todo: figure out read_memory syscall
